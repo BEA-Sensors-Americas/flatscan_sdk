@@ -4,28 +4,27 @@ import utils.flatscan_pattern_teachin as pattern
 from api.flatscan_api import *
 import math
 
-flatscan = Flatscan(4, baudrate=921600)
-flatscan.set_can_and_frame_counter_field(1)
-flatscan.set_heartbeat_period(5)
-flatscan.register_heartbeat_handler(lambda x: print("heartbeat: *", x[0], x[1]))
-params = flatscan.get_parameters()
-right_angel_point = (params["num_spots"] / (params['angle_last'] - params['angle_first']) * 100) * 90
-print(right_angel_point)
-print(params["num_spots"])
+flatscan = Flatscan(7, baudrate=921600)
+mdi=flatscan.get_mdi()
+parameters=flatscan.get_parameters()
+print(parameters)
+num_spot=parameters['num_spots']
+print(num_spot)
+angular_resolution=(parameters['angle_last']-parameters['angle_first'])/num_spot
+print(mdi)
 
-teachIn = pattern.TeachInPattern(params["num_spots"], params['angle_first'], params['angle_last'], 705, 450)
 
-for i in range(50):
+for i in range(100000000):
+    mdi=flatscan.get_mdi()
+    print(mdi['distances'])
     time.sleep(0.1)
-    mdi = flatscan.get_mdi()
-    teachIn.teach_in(mdi['distances'])
 
-teachIn.finish_teach_in()
 
-while (1):
-    time.sleep(1)
-    mdi = flatscan.get_mdi()
-    teachIn.compare_pattern(mdi['distances'])
+
+#while (1):
+    #time.sleep(1)
+    #mdi = flatscan.get_mdi()
+    #teachIn.compare_pattern(mdi['distances'])
 
 # while (1):
 #    time.sleep(1)

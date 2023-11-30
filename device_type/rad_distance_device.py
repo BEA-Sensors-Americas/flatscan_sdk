@@ -15,7 +15,11 @@ class RadDistance:
         self.yellow_dist = yellow_dist
         self.red_dist = red_dist
         self.threshold = 3
+    def set_yellow_dist(self, yellow_dist):
+        self.yellow_dist = yellow_dist
 
+    def set_red_dist(self, red_dist):
+        self.red_dist = red_dist
     def get_object_in_zone(self, distances_in_zone):
         zone_red_info = np.array([True if dist < self.red_dist else False for dist in distances_in_zone])
         zone_yellow_info = np.array(

@@ -48,6 +48,7 @@ class Renderer:
         self.color_palette = Color_Palette()
         self.base_frame = None
         self.next_frame_to_display = None
+        self.frame_data = None
         self.origin_point = (self.max_x // 6, self.max_y // 6)
         self.origin_point_radius = 10
         self.draw_background_n_auxiliary_lines()
@@ -114,9 +115,14 @@ class Renderer:
             px, py = point_position
             px = round(px)
             py = round(py)
-            radius = 2
+            radius = 1
             new_frame[px - radius:px + radius, py - radius:py + radius] = self.color_palette.MDI
             self.mdi_map[(px, py)] = distances[i]
+            self.mdi_map[(px-1, py)] = distances[i]
+            self.mdi_map[(px+1, py)] = distances[i]
+            self.mdi_map[(px, py-1)] = distances[i]
+            self.mdi_map[(px, py+1)] = distances[i]
+
         self.rendered_frames += 1
         self.next_frame_to_display = new_frame
 

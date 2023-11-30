@@ -48,7 +48,7 @@ chord_dict={0: "C",
 class CustomGraphicsView(QGraphicsView):
     def __init__(self,scene, widget):
         super().__init__()
-        self.device = RadDistance(6, num_zones=num_regions)
+        self.device = RadDistance(4, num_zones=num_regions)
         self.widget=widget
         self.setScene(scene)
         self.timer = QTimer(self)

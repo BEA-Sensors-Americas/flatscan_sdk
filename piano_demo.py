@@ -529,7 +529,7 @@ class Ui_MainWindow(object):
 class FlatScanThread(QtCore.QThread):
     def __init__(self, parent=None):
         super(FlatScanThread, self).__init__(parent)
-        self.fs = fs.FlatScanPiano(5)
+        self.fs = fs.FlatScanPiano(4)
 
     def run(self):
         while (1):

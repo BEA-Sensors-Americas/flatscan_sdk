@@ -3,6 +3,20 @@ import numpy as np
 
 START_INDEX = 0
 
+def get_presence(mdi, limit):
+    distance = mdi['distances']
+    return any([d < limit for d in distance])
+
+
+
+def get_presences_in_zones(mdi, limit, num_zones):
+    distance = mdi['distances']
+    num_spots = len(distance)
+    spots_per_zone = math.floor(num_spots / num_zones)
+    presences = []
+    for i in range(num_zones):
+        presences.append(any([d < limit for d in distance[i*spots_per_zone:(i+1)*spots_per_zone]]))
+    return presences
 
 def get_occupancy(mdi, limit, maxCount):
     distance = mdi['distances']
@@ -77,15 +91,45 @@ def get_data_point_in_rec_bond(distance, depth, width, index, num_spots_in_rec):
     return pol[0]
 
 
+def convert_distances_to_cartesian(distances, num_spots_in_rec):
+    distances = distances[START_INDEX:START_INDEX + num_spots_in_rec]
+    rec_cor = [pol2cart(dist, (i / num_spots_in_rec) * 90) for i, dist in enumerate(distances)]
+    return rec_cor
+
+
+def cartisian_get_in_rec(rec_cor, depth_max, width_max,depth_min=0, width_min=0, limit=5):
+    in_rec = np.array([depth_max > x > depth_min and width_max > y > width_min for x, y in rec_cor])
+    longest = np.diff(np.where(np.concatenate(([in_rec[0]], in_rec[:-1] != in_rec[1:], [True])))[0])[::2]
+    longest = np.sort(longest)
+    # print(longest)
+    return len(longest) > 0 and longest[-1] > limit
+
+
 def get_presence_in_rec(distances, depth, width, limit, num_spots_in_rec):
     # depth=x, width=y
     # TODO limit should be something you can configure, limit is the size of the detected object
     distances = distances[START_INDEX:START_INDEX + num_spots_in_rec]
     rec_cor = [pol2cart(dist, (i / num_spots_in_rec) * 90) for i, dist in enumerate(distances)]
     in_rec = np.array([x < depth and y < width for x, y in rec_cor])
+    print(rec_cor)
     longest = np.diff(np.where(np.concatenate(([in_rec[0]], in_rec[:-1] != in_rec[1:], [True])))[0])[::2]
     longest = np.sort(longest)
+    # print(longest)
     return len(longest) > 0 and longest[-1] > limit
+
+
+def get_presence_in_rec2(distances, depth_max, width_max, depth_min, width_min, limit, num_spots_in_rec):
+    # depth=x, width=y
+    # TODO limit should be something you can configure, limit is the size of the detected object
+    distances = distances[START_INDEX:START_INDEX + num_spots_in_rec]
+    rec_cor = [pol2cart(dist, (i / num_spots_in_rec) * 90) for i, dist in enumerate(distances)]
+    in_rec = np.array([x < depth_max and y < width_max and x > depth_min and y > width_min for x, y in rec_cor])
+    # print(rec_cor)
+    longest = np.diff(np.where(np.concatenate(([in_rec[0]], in_rec[:-1] != in_rec[1:], [True])))[0])[::2]
+    longest = np.sort(longest)
+    # print(longest)
+    return len(longest) > 0 and longest[-1] > limit
+
 
 def all_spots_in_rec(distances, depth, width, num_spots_in_rec, num_zones):
     distances = distances[START_INDEX:START_INDEX + num_spots_in_rec]
@@ -93,8 +137,8 @@ def all_spots_in_rec(distances, depth, width, num_spots_in_rec, num_zones):
     print("rec_cor: ", rec_cor)
     each_zone_depth = depth / num_zones
     print("each zone depth: ", each_zone_depth)
-    zones=[]
+    zones = []
     for i in range(num_zones):
-        in_rec = np.array([(i*each_zone_depth)< x < ((i+1)*each_zone_depth) and y < width for y, x in rec_cor])
+        in_rec = np.array([(i * each_zone_depth) < x < ((i + 1) * each_zone_depth) and y < width for y, x in rec_cor])
         zones.append(np.sum(in_rec))
     return zones

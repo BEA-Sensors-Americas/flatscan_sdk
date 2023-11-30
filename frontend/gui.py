@@ -641,6 +641,6 @@ class InteractiveImageWidget(RawImageWidget):
 
     def show_information(self, x, y):
         # Display information as a tooltip or in a label
-        self.label.setText(str(self.renderer.reverse_translate_to_distance(x, y)))
+        self.label.setText(str(self.renderer.mdi_map[(int(x), int(y))]))
         self.label.move(int(x) + 10, int(y) + 10)
         self.label.show()
