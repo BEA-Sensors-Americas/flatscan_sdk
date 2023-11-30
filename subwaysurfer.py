@@ -3,7 +3,7 @@ import time
 from device_type.rad_distance_device import *
 from device_type.controller import *
 import pyautogui as pg
-
+state=2
 flatscan = Controller(4, 7)
 while True:
     new_state = flatscan.update_occupancy()
