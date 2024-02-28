@@ -49,6 +49,10 @@ def register_handlers():
     main_ui.lineEdit_angle_last.editingFinished.connect(angle_last_input)
     main_ui.lineEdit_spots_number.editingFinished.connect(spots_number_input)
 
+    main_ui.slider_mdi.valueChanged.connect(slider_mdi_value_changed)
+    main_ui.slider_mri.valueChanged.connect(slider_mri_value_changed)
+    main_ui.pushButton_reset_scale.clicked.connect(scale_button_clicked)
+
 
 def baud_rate_selection():
     selected_text = main_ui.comboBox_baud_rate.currentText()
@@ -445,3 +449,13 @@ def color_text(text, color):
 
 def hex_color(color_rgb):
     return "#{0:02x}{1:02x}{2:02x}".format(*color_rgb)
+
+
+def slider_mdi_value_changed():
+    renderer.set_mdi_scaling(main_ui.slider_mdi.value())
+
+def slider_mri_value_changed():
+    renderer.set_mri_scaling(main_ui.slider_mri.value())
+def scale_button_clicked():
+    main_ui.slider_mdi.setValue(50)
+    main_ui.slider_mri.setValue(50)

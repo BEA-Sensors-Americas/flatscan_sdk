@@ -4,7 +4,7 @@ import utils.flatscan_pattern_teachin as pattern
 from api.flatscan_api import *
 import math
 
-flatscan = Flatscan(7, baudrate=921600)
+flatscan = Flatscan(8, baudrate=921600)
 mdi=flatscan.get_mdi()
 parameters=flatscan.get_parameters()
 print(parameters)

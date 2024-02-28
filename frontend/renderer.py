@@ -2,6 +2,7 @@ import csv
 import datetime
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 from datetime import datetime
 
 import numpy as np
@@ -17,7 +18,10 @@ from frontend.sensor_params import SensorParams
 from frontend.signal_handlers import sensor_params
 from frontend.variable_enums import *
 
+DISTANCE = 0
+REMISSION = 1
 
+global_frame=None
 class Color_Palette:
 
     def __init__(self, background=colors.BLACK, origin=colors.YELLOW1, boundary=colors.GREEN, vertical=colors.RED1,
@@ -31,11 +35,12 @@ class Color_Palette:
         self.boundary = boundary
         self.vertical = vertical
         self.MDI = MDI
+        self.MRI = colors.MINT
 
 
 class Renderer:
 
-    def __init__(self, q_app, window, main_window, refresh_interval, h, w, af=0, al=108) -> None:
+    def __init__(self, q_app, window, main_window, refresh_interval, h, w, af=0, al=108, ns=400) -> None:
         self.window = window
         self.main_window = main_window
         self.main_window.resized.connect(self.resize_renderer)
@@ -47,14 +52,19 @@ class Renderer:
         self.angle_last = al
         self.color_palette = Color_Palette()
         self.base_frame = None
+        global global_frame
         self.next_frame_to_display = None
         self.frame_data = None
         self.origin_point = (self.max_x // 6, self.max_y // 6)
         self.origin_point_radius = 10
         self.draw_background_n_auxiliary_lines()
+        self.scaling_factor_mdi = 0.5
+        self.scaling_factor_mri = 0.1
         # statistics
         self.start_ts = 0
         self.rendered_frames = 0
+        self.line_map = {}
+        # self.store_lines_to_render()
         # start updating frame
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_plot)
@@ -71,6 +81,18 @@ class Renderer:
         self.origin_point = (self.max_x // 6, self.max_y // 8)
         self.origin_point_radius = 10
         self.draw_background_n_auxiliary_lines()
+
+    def store_lines_to_render(self):
+        angle_delta = (self.angle_last - self.angle_first) / (400 - 1)
+        x, y = self.origin_point
+        for i in range(self.angle_first, self.angle_last, 1):
+            for dist in range(1, 5000):
+                point_position = self.translate_to_point_position(self.origin_point, dist, angle_delta, i)
+                px, py = point_position
+                px = round(px)
+                py = round(py)
+                line = self.weighted_line(x, y, px, py, 1, 0, self.max_x - 1)
+                self.line_map[(i, dist)] = line
 
     def start_mdi_polling_thread(self, q_app):
         self.polling_thread = DataPollingThread()
@@ -91,23 +113,36 @@ class Renderer:
         frame_per_second = self.rendered_frames / elapsed_time_seconds
         self.window.label_fps.setText('FPS: ' + str(round(frame_per_second, 2)))
 
-    # todo: better rescale strategy?
     def rescale_linear(self, array, new_min, new_max):
-        newArray = [0.5 * self.clip(a, new_min, new_max) for a in array]
+        newArray = [self.scaling_factor_mdi * 0.1 * a for a in array]
         # return m * array + b
         return newArray
 
-    def clip(self, t, new_min, new_max):
-        if (t > new_max):
-            return 0 + 0.2 * t
-        return 0.1 * t + 0
+    def set_mdi_scaling(self, scaling_factor):
+        if scaling_factor == 50:
+            self.scaling_factor_mdi = 0.5
+        elif scaling_factor < 50:
+            self.scaling_factor_mdi = 0.05 + (scaling_factor / 50.0) * 0.45
+        else:
+            self.scaling_factor_mdi = 0.5 + (scaling_factor - 50) / 50.0 * 4.5
 
-    def render_w_new_mdi_data(self, distances):
+    def set_mri_scaling(self, scaling_factor):
+        if scaling_factor == 50:
+            self.scaling_factor_mri = 0.1
+        elif scaling_factor < 50:
+            self.scaling_factor_mri = 0.01 + (scaling_factor / 50.0) * 0.09
+        else:
+            self.scaling_factor_mri = 0.1 + (scaling_factor - 50) / 50.0 * 1.9
+
+    def render_w_new_mdi_data(self, mdi):
+        distances = np.array(mdi.get("distances", []))
+        remission = np.array(mdi.get("remissions", []))
+        re_exist=True if len(remission) > 0 else False
         measured_distances = self.rescale_linear(distances, 180, 5000)
         angle_first = self.angle_first
         angle_last = self.angle_last
         num_points = len(measured_distances)
-        new_frame = np.copy(self.base_frame)
+        new_frame=np.copy(self.base_frame)
         self.mdi_map = {}
         angle_delta = (angle_last - angle_first) / (num_points - 1)
         for i, dist in enumerate(measured_distances):
@@ -118,10 +153,96 @@ class Renderer:
             radius = 1
             new_frame[px - radius:px + radius, py - radius:py + radius] = self.color_palette.MDI
             self.mdi_map[(px, py)] = distances[i]
-            self.mdi_map[(px-1, py)] = distances[i]
-            self.mdi_map[(px+1, py)] = distances[i]
-            self.mdi_map[(px, py-1)] = distances[i]
-            self.mdi_map[(px, py+1)] = distances[i]
+            self.mdi_map[(px - 1, py)] = distances[i]
+            self.mdi_map[(px + 1, py)] = distances[i]
+            self.mdi_map[(px, py - 1)] = distances[i]
+            self.mdi_map[(px, py + 1)] = distances[i]
+            if len(remission) > 0:
+                remission_value = remission[i] * self.scaling_factor_mri
+                point_remission = self.translate_to_point_position(self.origin_point, remission_value, angle_delta, i)
+                prx, pry = point_remission
+                prx = round(prx)
+                pry = round(pry)
+                radius = 1
+                new_frame[prx - radius:prx + radius, pry - radius:pry + radius] = self.color_palette.MRI
+
+        self.rendered_frames += 1
+        self.next_frame_to_display = new_frame
+
+    def render_w_new_mdi_data_new(self, mdi):
+        distances = np.array(mdi.get("distances", []))
+        remission = np.array(mdi.get("remissions", []))
+        re_exist=True if len(remission) > 0 else False
+        measured_distances = self.rescale_linear(distances, 180, 5000)
+        angle_first = self.angle_first
+        angle_last = self.angle_last
+        num_points = len(measured_distances)
+        new_frame=np.copy(self.base_frame)
+        self.mdi_map = {}
+        angle_delta = (angle_last - angle_first) / (num_points - 1)
+        get_points_on_lines(measured_distances,self.origin_point,angle_delta,new_frame)
+        self.rendered_frames += 1
+        self.next_frame_to_display = new_frame
+    def render_w_new_mdi_data_pp(self, mdi):
+        distances = np.array(mdi.get("distances", []))
+        remission = np.array(mdi.get("remissions", []))
+        measured_distances = self.rescale_linear(distances, 180, 5000)
+        angle_first = self.angle_first
+        angle_last = self.angle_last
+        num_points = len(measured_distances)
+        global global_frame
+        global_frame= np.copy(self.base_frame)
+        self.mdi_map = {}
+        angle_delta = (angle_last - angle_first) / (num_points - 1)
+        x, y = self.origin_point
+        max_x=self.max_x
+        max_y=self.max_y
+        threads=[]
+        for i, dist in enumerate(measured_distances):
+            thread_point = threading.Thread(target=compute_point, args=(i, dist, angle_first, angle_delta, x, y, max_x, max_y))
+            thread_point.start()
+            threads.append(thread_point)
+
+        for thread in threads:
+            thread.join()
+        self.rendered_frames += 1
+        self.next_frame_to_display = global_frame
+    def update_gui(self, result, new_frame):
+        angle_delta, i, line, px, py, mdi_value = result
+        radius = 1
+        new_frame[px - radius:px + radius, py - radius:py + radius] = self.color_palette.MDI
+        self.mdi_map[(px, py)] = mdi_value
+        self.mdi_map[(px - 1, py)] = mdi_value
+        self.mdi_map[(px + 1, py)] = mdi_value
+        self.mdi_map[(px, py - 1)] = mdi_value
+        self.mdi_map[(px, py + 1)] = mdi_value
+
+    def process_distances_parallel(self, mdi):
+        distances = np.array(mdi.get("distances", []))
+        remission = np.array(mdi.get("remissions", []))
+        measured_distances = self.rescale_linear(distances, 180, 5000)
+        angle_first = self.angle_first
+        angle_last = self.angle_last
+        num_points = len(measured_distances)
+        new_frame = np.copy(self.base_frame)
+        self.mdi_map = {}
+        angle_delta = (angle_last - angle_first) / (num_points - 1)
+        x, y = self.origin_point
+        max_x = self.max_x
+        max_y = self.max_y
+
+        with ProcessPoolExecutor() as executor:
+            futures = [
+                executor.submit(compute_point, i, new_frame, new_frame, measured_distances, remission, angle_first,
+                                angle_delta, x,
+                                y,
+                                max_x, max_y) for i in range(num_points)]
+
+            # Wait for all tasks to complete
+            for future in futures:
+                result = future.result()
+                if result is not None:
+                    self.update_gui(result, new_frame)
 
         self.rendered_frames += 1
         self.next_frame_to_display = new_frame
@@ -129,20 +250,22 @@ class Renderer:
     def translate_to_point_position(self, origin_point, dist, angle_delta, point_idx):
         angle = angle_delta * point_idx + self.angle_first
         x, y = origin_point
-        if angle <= 20:
-            angle = 20 - angle
+        offset = (self.angle_last - self.angle_first) - 90
+        #print(offset)
+        if angle <= offset:
+            angle = offset - angle
             ang_rad = math.radians(angle)
             x_delta = math.sin(ang_rad) * dist
             new_y = y + math.cos(ang_rad) * dist
             new_x = x - x_delta
         else:
-            angle = angle - 20
+            angle = angle - offset
             ang_rad = math.radians(angle)
             x_delta = math.sin(ang_rad) * dist
             new_y = y + math.cos(ang_rad) * dist
             new_x = x + x_delta
 
-        return (new_x, new_y)
+        return new_x, new_y
 
     def set_new_frame_context(self, max_x=None, max_y=None, angle_first=-1, angle_last=-1, color_palette=None):
         changed = max_x or max_y or angle_first >= 0 or angle_last >= 0 or color_palette
@@ -192,7 +315,7 @@ class Renderer:
             new_y = y + y_delta
         return new_x, new_y
 
-    def paint_line(self, max_x, max_y, img, line, color=np.array([0, 255, 0])):
+    def paint_line(self, max_x, max_y, img, line, color=np.array([160, 160, 160])):
         xx, yy, ww = line
         for i in range(len(yy)):
             x = xx[i]
@@ -205,12 +328,18 @@ class Renderer:
 
     def plot_boundary(self, img, max_x, max_y, origin_point, angle_first, angle_last):
         x, y = origin_point
+        for i in range(angle_first+1, angle_last-1, 1):
+            ep_x, ep_y = self.calculate_point_relative_to_origin(max_x, max_y, origin_point, i)
+            line = self.weighted_line(x, y, ep_x, ep_y, 0.2, 0, max_x - 1)
+            self.paint_line(max_x, max_y, img, line)
+
         ep_x, ep_y = self.calculate_point_relative_to_origin(max_x, max_y, origin_point, angle_first)
         line = self.weighted_line(x, y, ep_x, ep_y, 4, 0, max_x - 1)
-        self.paint_line(max_x, max_y, img, line)
-        ep_x, ep_y = self.calculate_point_relative_to_origin(max_x, max_y, origin_point, angle_last)
+        self.paint_line(max_x, max_y, img, line, np.array([255, 255, 255]))
+        ep_x, ep_y = self.calculate_point_relative_to_origin(max_x, max_y, origin_point, angle_last+1)
         line = self.weighted_line(x, y, ep_x, ep_y, 4, 0, max_x - 1)
-        self.paint_line(max_x, max_y, img, line)
+        # bea logo color
+        self.paint_line(max_x, max_y, img, line, np.array([255, 255, 255]))
 
     def trapez(self, y, y0, w):
         return np.clip(np.minimum(y + 1 + w / 2 - y0, -y + 1 + w / 2 + y0), 0, 1)
@@ -257,20 +386,6 @@ class Renderer:
             original_t = (t - 0) / 0.1
         return original_t
 
-    def reverse_translate_to_distance(self, new_x, new_y):
-        x, y = self.origin_point
-
-        # Calculate the distance between the original point and the new point
-        dist = math.sqrt((new_x - x) ** 2 + (new_y - y) ** 2)
-        original_dist = self.reverse_rescale_linear(dist)
-
-        # Reverse the clip function to get the original array value
-        original_array_value = self.reverse_clip(original_dist, 180, 5000)
-
-        # Reverse the rescaling applied to dist
-
-        return original_array_value
-
 
 class DataPollingThread(QThread):
 
@@ -291,7 +406,7 @@ class DataPollingThread(QThread):
         get_parameter(self.param)
 
         self.angular_resolution = (self.param.angle_last - self.param.angle_first) / self.param.spots_number
-        print(self.angular_resolution)
+        #print(self.angular_resolution)
         self.csv_writer.writerow(['timestamp'] + [i * self.angular_resolution for i in range(self.param.spots_number)])
         self.state_semaphore.release()
 
@@ -320,15 +435,112 @@ class DataPollingThread(QThread):
             if self.missedReading > ALLOWED_MISSED_MDI:
                 return -1
             return 0
-        distances = np.array(mdi['distances'])
+
         # print(distances)
-        if not len(distances):
-            return 0
-            # distances = np.random.randint(200, 220, 108)
+        # distances = np.random.randint(200, 220, 108)
         current_time = int(time.time())
         # self.csv_writer.writerow([current_time] + distances.tolist())
         # for rendering
-        self.renderer.render_w_new_mdi_data(distances)
+        self.renderer.render_w_new_mdi_data(mdi)
         # for object detection
-        self.renderer.update_occupancy(mdi['distances'])
+        # self.renderer.update_occupancy(mdi['distances'])
         return 0
+
+
+def compute_point(i, dist, angle_first, angle_delta, x, y, max_x, max_y):
+
+    point_position = translate_to_point_position((x, y), dist, angle_first, angle_delta, i)
+    px, py = point_position
+    px = round(px)
+    py = round(py)
+    line = weighted_line(x, y, px, py, 1, 0, max_x - 1)
+
+    if px >= 0 and px < max_x and py >= 0 and py < max_y:
+        paint_line(max_x, max_y, line)
+        return (angle_delta, i, line, px, py, dist)
+
+
+def translate_to_point_position(origin_point, dist, angle_first, angle_delta, point_idx):
+    angle = angle_delta * point_idx + angle_first
+    x, y = origin_point
+    if angle <= 20:
+        angle = 20 - angle
+        ang_rad = math.radians(angle)
+        x_delta = math.sin(ang_rad) * dist
+        new_y = y + math.cos(ang_rad) * dist
+        new_x = x - x_delta
+    else:
+        angle = angle - 20
+        ang_rad = math.radians(angle)
+        x_delta = math.sin(ang_rad) * dist
+        new_y = y + math.cos(ang_rad) * dist
+        new_x = x + x_delta
+
+    return (new_x, new_y)
+
+
+def weighted_line(r0, c0, r1, c1, w, rmin=0, rmax=np.inf):
+    if abs(c1 - c0) < abs(r1 - r0):
+        xx, yy, val = weighted_line(c0, r0, c1, r1, w, rmin=rmin, rmax=rmax)
+        return (yy, xx, val)
+
+    if c0 > c1:
+        return weighted_line(r1, c1, r0, c0, w, rmin=rmin, rmax=rmax)
+
+    slope = (r1 - r0) / (c1 - c0)
+
+    w *= np.sqrt(1 + np.abs(slope)) / 2
+
+    x = np.arange(c0, c1 + 1, dtype=float)
+    y = x * slope + (c1 * r0 - c0 * r1) / (c1 - c0)
+
+    thickness = np.ceil(w / 2)
+    yy = (np.floor(y).reshape(-1, 1) + np.arange(-thickness - 1, thickness + 2).reshape(1, -1))
+    xx = np.repeat(x, yy.shape[1])
+    vals = trapez(yy, y.reshape(-1, 1), w).flatten()
+
+    yy = yy.flatten()
+
+    mask = np.logical_and.reduce((yy >= rmin, yy < rmax, vals > 0))
+
+    return (yy[mask].astype(int), xx[mask].astype(int), vals[mask])
+
+
+def trapez(y, y0, w):
+    return np.clip(np.minimum(y + 1 + w / 2 - y0, -y + 1 + w / 2 + y0), 0, 1)
+
+
+def paint_line(max_x, max_y, line, color=np.array([160, 160, 160])):
+    xx, yy, ww = line
+    for i in range(len(yy)):
+        x = xx[i]
+        y = yy[i]
+        w = ww[i]
+        if x >= max_x or y >= max_y:
+            break
+        # print(y, x)
+        global_frame[x, y] = color * w
+
+
+def get_points_on_lines(distances, origin, resolution, distance_map):
+    x, y = origin
+    size = int(max(distances) / resolution) + 1
+
+    def compute_line_points(d,max_x1, max_y1):
+        theta = np.linspace(0, np.pi / 2, int(d / resolution))
+        raw_points_x = np.round(x + np.cos(theta) * d / resolution).astype(int)
+        raw_points_y = np.round(y + np.sin(theta) * d / resolution).astype(int)
+        points_x1 = np.clip(raw_points_x, 0, max_x1 - 1)
+        points_y1 = np.clip(raw_points_y, 0, max_y1 - 1)
+        return points_x1, points_y1
+
+    max_x = distance_map.shape[1]  # Replace with the actual value
+    max_y = distance_map.shape[0]  # Replace with the actual value
+
+    with ThreadPoolExecutor() as executor:
+        line_points = list(executor.map(lambda d: compute_line_points(d, max_x, max_y), distances))
+
+    for points_x, points_y in line_points:
+        distance_map[points_y, points_x] = colors.GRAY
+
+

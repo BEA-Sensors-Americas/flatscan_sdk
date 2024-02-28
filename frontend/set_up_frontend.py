@@ -50,13 +50,11 @@ def set_up_front_end():
 
     # Initialize renderer for processing MDI data
 
-
-
     r = renderer.Renderer(app, main_ui, main_window, 200, main_ui.plot_graph.size().width(),
                           main_ui.plot_graph.size().height() - main_ui.textBrowser.size().height() - 50, 0, 108)
     # Initialize models for storing GUI state and handling user events
     init_model_and_handlers(main_ui, main_window, r)
 
+
     # Starting event loop
     sys.exit(app.exec())
-

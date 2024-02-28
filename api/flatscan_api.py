@@ -79,7 +79,6 @@ class FlatscanReadThread(threading.Thread):
                     sync_pattern = self.flatscan_serial.read(4)
                     #print(sync_pattern)
                     if sync_pattern == SYNC_PATTERN:
-                        #print("ASDADS")
                         break
                 except serial.serialutil.SerialException or TypeError:
                     self.log_event("serial port closed")
@@ -118,7 +117,7 @@ class FlatscanReadThread(threading.Thread):
                     self.heartbeat_handler(utils.flatscan_parse_heartbeat_msg(msg))
             finally:
                 self.conditions[cmd_field].release()
-        print("event received")
+        #print("event received")
 
 
 def enable_logging():
@@ -448,7 +447,7 @@ class Flatscan:
         sync_field = utils.flatscan_sync_field_build(GET_PARAMETERS_LEN)
         crc_field = utils.flatscan_chk_field_build(sync_field + GET_PARAMETERS_CMD)
         self.flatscan_serial.write(sync_field + GET_PARAMETERS_CMD + crc_field)
-        print(sync_field + GET_PARAMETERS_CMD + crc_field)
+        #print(sync_field + GET_PARAMETERS_CMD + crc_field)
         msg = self.__get_msg(MSG_SEND_PARAMETERS_CMD)
         if msg is None:
             self.handle_timeout("time out from set params")
@@ -497,7 +496,7 @@ class Flatscan:
         data_field = b'\x00'
         crc_field = utils.flatscan_chk_field_build(sync_field + GET_MEASUREMENTS_CMD + data_field)
         self.flatscan_serial.write(sync_field + GET_MEASUREMENTS_CMD + data_field + crc_field)
-
+        #print(sync_field + GET_MEASUREMENTS_CMD + data_field + crc_field)
         msg = self.__get_msg(MSG_MDI_CMD)
         if DEBUG:
             self.log_action("mdi Information", msg)

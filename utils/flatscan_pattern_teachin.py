@@ -10,6 +10,7 @@ class TeachInPattern:
         self.angle_first = angle_first
         self.angle_last = angle_last
         self.pattern = np.zeros(num_spots)
+        self.remission_pattern = np.zeros(num_spots)
         self.num_samples = 0
         self.depth = depth
         self.width = width
@@ -20,6 +21,11 @@ class TeachInPattern:
             return
         self.pattern = np.add(self.pattern, np.array(distances))
         self.num_samples += 1
+
+    def teach_in_remission(self, remission):
+        if len(remission) != self.num_spots:
+            return
+        self.remission_pattern = np.add(self.remission_pattern, np.array(remission))
 
     def clip_distances(self, distances):
         if len(distances) != self.num_spots:
@@ -45,3 +51,8 @@ class TeachInPattern:
     def object_misplacement(self, distances):
         mse = self.compare_pattern(distances)
         return mse >= OBJECT_MISPLACEMENT_THRESHOLD
+
+    def largest_diff_distance_index(self, distances):
+        distances = self.clip_distances(distances)
+        absolute_difference = np.abs(distances - self.pattern)
+        return np.argmax(absolute_difference)

@@ -8,7 +8,8 @@
 
 from PyQt6 import QtCore, QtGui, QtWidgets
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtWidgets import QLabel
+from PyQt6.QtWidgets import QLabel, QSlider
+from PyQt6.QtCore import Qt
 
 
 class Ui_FLATSCAN(object):
@@ -373,10 +374,45 @@ class Ui_FLATSCAN(object):
         self.formLayout.setLayout(23, QtWidgets.QFormLayout.ItemRole.SpanningRole, self.horizontalLayout_6)
         self.horizontalLayout_8 = QtWidgets.QHBoxLayout()
         self.horizontalLayout_8.setObjectName("horizontalLayout_8")
+        self.label_scaling= QtWidgets.QLabel(parent=self.frame_params)
+        self.label_scaling.setFont(font)
+        self.label_scaling.setObjectName("label_scaling")
+        self.horizontalLayout_8.addWidget(self.label_scaling)
         self.formLayout.setLayout(24, QtWidgets.QFormLayout.ItemRole.LabelRole, self.horizontalLayout_8)
         self.horizontalLayout_16 = QtWidgets.QHBoxLayout()
         self.horizontalLayout_16.setObjectName("horizontalLayout_16")
+        self.label_distance_scaling = QtWidgets.QLabel(parent=self.frame_params)
+        self.label_distance_scaling.setFont(font)
+        self.label_distance_scaling.setObjectName("label_angle_first")
+        self.horizontalLayout_16.addWidget(self.label_distance_scaling)
+        self.slider_mdi = QSlider(parent=self.frame_params)
+        self.slider_mdi.setOrientation(Qt.Orientation.Horizontal)  # 1 means vertical, 0 means horizontal
+        self.slider_mdi.setRange(0, 100)
+        middle_position = (self.slider_mdi.maximum() + self.slider_mdi.minimum()) // 2
+        self.slider_mdi.setValue(middle_position)
+        self.horizontalLayout_16.addWidget(self.slider_mdi)
         self.formLayout.setLayout(27, QtWidgets.QFormLayout.ItemRole.SpanningRole, self.horizontalLayout_16)
+        self.horizontalLayout_17 = QtWidgets.QHBoxLayout()
+        self.horizontalLayout_17.setObjectName("horizontalLayout_17")
+        self.label_remission_scaling = QtWidgets.QLabel(parent=self.frame_params)
+        self.label_remission_scaling.setFont(font)
+        self.label_remission_scaling.setObjectName("label_remission_scaling")
+        self.horizontalLayout_17.addWidget(self.label_remission_scaling)
+        self.slider_mri = QSlider(parent=self.frame_params)
+        self.slider_mri.setOrientation(Qt.Orientation.Horizontal)  # 1 means vertical, 0 means horizontal
+        self.slider_mri.setRange(0, 100)
+        middle_position = (self.slider_mri.maximum() + self.slider_mri.minimum()) // 2
+        self.slider_mri.setValue(middle_position)
+        self.horizontalLayout_17.addWidget(self.slider_mri)
+        self.formLayout.setLayout(28, QtWidgets.QFormLayout.ItemRole.SpanningRole, self.horizontalLayout_17)
+        self.horizontalLayout_18 = QtWidgets.QHBoxLayout()
+        self.horizontalLayout_18.setObjectName("horizontalLayout_18")
+        self.pushButton_reset_scale = QtWidgets.QPushButton(parent=self.frame_params)
+        self.pushButton_reset_scale.setFont(font)
+        self.pushButton_reset_scale.setObjectName("pushButton_reset_scale")
+        self.horizontalLayout_18.addWidget(self.pushButton_reset_scale)
+        self.formLayout.setLayout(29, QtWidgets.QFormLayout.ItemRole.SpanningRole, self.horizontalLayout_18)
+
         self.horizontalLayout_7.addWidget(self.frame_params)
         self.frame_display = QtWidgets.QFrame(parent=self.frame_main)
         sizePolicy = QtWidgets.QSizePolicy(QtWidgets.QSizePolicy.Policy.MinimumExpanding,
@@ -506,6 +542,8 @@ class Ui_FLATSCAN(object):
         self.comboBox_com_port.addItem("")
         self.comboBox_com_port.addItem("")
         self.comboBox_com_port.addItem("")
+        self.comboBox_com_port.addItem("")
+
         self.horizontalLayout.addWidget(self.comboBox_com_port)
         spacerItem22 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Policy.Expanding,
                                              QtWidgets.QSizePolicy.Policy.Minimum)
@@ -604,8 +642,14 @@ class Ui_FLATSCAN(object):
         self.comboBox_com_port.setItemText(4, _translate("FLATSCAN", "5"))
         self.comboBox_com_port.setItemText(5, _translate("FLATSCAN", "6"))
         self.comboBox_com_port.setItemText(6, _translate("FLATSCAN", "7"))
+        self.comboBox_com_port.setItemText(7, _translate("FLATSCAN", "8"))
+
         self.pushButton_connect.setText(_translate("FLATSCAN", "Connect"))
         self.pushButton_get_identity.setText(_translate("FLATSCAN", "Get Identity"))
+        self.label_scaling.setText(_translate("FLATSCAN", "Scaling: "))
+        self.label_distance_scaling.setText(_translate("FLATSCAN", "Distances: "))
+        self.label_remission_scaling.setText(_translate("FLATSCAN", "Remission: "))
+        self.pushButton_reset_scale.setText(_translate("FLATSCAN", "Reset Scaling"))
 
 
 from pyqtgraph.widgets.RawImageWidget import RawImageWidget
@@ -637,7 +681,8 @@ class InteractiveImageWidget(RawImageWidget):
     def is_over_target_pixel(self, x, y):
 
         # Implement logic to determine if (x, y) is over the target pixel or area
-        return (int(x), int(y)) in self.renderer.mdi_map  # Replace with your own logic
+        return (int(x), int(y)) in self.renderer.mdi_map
+
 
     def show_information(self, x, y):
         # Display information as a tooltip or in a label

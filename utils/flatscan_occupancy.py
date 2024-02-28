@@ -111,7 +111,7 @@ def get_presence_in_rec(distances, depth, width, limit, num_spots_in_rec):
     distances = distances[START_INDEX:START_INDEX + num_spots_in_rec]
     rec_cor = [pol2cart(dist, (i / num_spots_in_rec) * 90) for i, dist in enumerate(distances)]
     in_rec = np.array([x < depth and y < width for x, y in rec_cor])
-    print(rec_cor)
+    #print(rec_cor)
     longest = np.diff(np.where(np.concatenate(([in_rec[0]], in_rec[:-1] != in_rec[1:], [True])))[0])[::2]
     longest = np.sort(longest)
     # print(longest)
